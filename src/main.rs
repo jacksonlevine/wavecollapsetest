@@ -3,7 +3,7 @@ mod shader;
 mod camera;
 mod texture;
 
-use std::sync::Mutex;
+use std::{f32::consts::PI, sync::Mutex};
 
 use camera::Camera;
 use glfw::{ffi::glfwGetTime, Action, Context, Key};
@@ -35,7 +35,8 @@ struct WaveCollapseGame {
     shader: Shader,
     camera: Mutex<Camera>,
     vars: Vars,
-    texture: Texture
+    texture: Texture,
+    delta_time: f32
 }
 
 impl WaveCollapseGame {
@@ -46,11 +47,51 @@ impl WaveCollapseGame {
             shader: Shader::new("oldvert.glsl", "oldfrag.glsl"),
             camera: Mutex::new(Camera::new()),
             vars: Vars::new(),
-            texture
+            texture,
+            delta_time: 0.0
         }
     }
 
     pub fn update(&mut self) {
+
+        static mut PREV_TIME: f32 = 0.0;
+        unsafe {
+            let current_time = unsafe { glfwGetTime() as f32 };
+            self.delta_time = (current_time - PREV_TIME).min(0.05);
+            PREV_TIME = current_time;
+        }
+
+
+        {
+            let mut cam_lock = self.camera.lock().unwrap();
+            unsafe {
+                if CONTROLS[0] {
+                    let mut dir = cam_lock.direction.clone();
+                    dir.y = 0.0;
+                    cam_lock.position += dir * self.delta_time;
+                }
+                if CONTROLS[1] {
+                    let mut dir = cam_lock.direction.clone();
+                    dir.y = 0.0;
+                    cam_lock.position -= dir * self.delta_time;
+                }
+                if CONTROLS[2] {
+                    let mut dir = cam_lock.right.clone();
+                    dir.y = 0.0;
+                    cam_lock.position -= dir * self.delta_time;
+                }
+                if CONTROLS[3] {
+                    let mut dir = cam_lock.right.clone();
+                    dir.y = 0.0;
+                    cam_lock.position += dir * self.delta_time;
+                }
+                if CONTROLS[0] || CONTROLS[1] || CONTROLS[2] || CONTROLS[3] {
+                    cam_lock.recalculate();
+                }
+            }
+        }
+        
+        
 
         let verts = vec![
             0.19119387865066528, 0.8131672143936157, 0.20535674691200256, 0.0, 14.0,
@@ -571,7 +612,9 @@ pub fn draw_old_geometry(&self, vvbo: GLuint, uvvbo: GLuint, vdata: Vec<f32>, uv
                     b"sunrise\0".as_ptr() as *const i8,
                 );
             }
-            let cam_lock = self.camera.lock().unwrap();
+            let  cam_lock = self.camera.lock().unwrap();
+
+
 
             gl::UniformMatrix4fv(MVP_LOC, 1, gl::FALSE, cam_lock.mvp.to_cols_array().as_ptr());
             gl::Uniform3f(
@@ -752,7 +795,12 @@ pub fn bind_old_geometry(
 
 
 
-
+pub static mut CONTROLS: [bool; 4] = [
+    false, //f
+    false, //b
+    false, //r
+    false //l
+];
 
 
 fn main() {
@@ -766,7 +814,7 @@ fn main() {
 
 
 
-    let (mut window, events) = glfw.create_window(1280, 720, "Proof that intel is broken", glfw::WindowMode::Windowed)
+    let (mut window, events) = glfw.create_window(1280, 720, "3d test", glfw::WindowMode::Windowed)
         .expect("Failed to create GLFW window.");
 
     window.set_key_polling(true);
@@ -807,6 +855,37 @@ fn main() {
             match event {
                 glfw::WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
                     window.set_should_close(true)
+                }
+                glfw::WindowEvent::Key(key, _, action, _) => {
+                    match key {
+                        Key::W => {
+                            unsafe {
+                                CONTROLS[0] = (action == Action::Press || action == Action::Repeat);
+                            }
+                            
+                        }
+                        Key::S => {
+                            unsafe {
+                                CONTROLS[1] = (action == Action::Press || action == Action::Repeat);
+                            }
+                            
+                        }
+                        Key::D => {
+                            unsafe {
+                                CONTROLS[2] = (action == Action::Press || action == Action::Repeat);
+                            }
+                            
+                        }
+                        Key::A => {
+                            unsafe {
+                                CONTROLS[3] = (action == Action::Press || action == Action::Repeat);
+                            }
+                            
+                        }
+                        _ => {
+
+                        }
+                    }
                 }
                 glfw::WindowEvent::MouseButton(mousebutton, action, _) => {
 
