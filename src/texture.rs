@@ -1,11 +1,21 @@
+use bevy_ecs::system::Resource;
 use glam::IVec4;
 use image::{self, GenericImageView};
 
 use tracing::info;
+#[derive(Resource)]
 pub struct Texture {
     pub id: gl::types::GLuint,
     pub data: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
     pub size: (u32, u32)
+}
+
+impl Default for Texture {
+    fn default() -> Self {
+        let tex = Self::new("world.png").unwrap();
+        tex.add_to_unit(0);
+        tex
+    }
 }
 
 impl Texture {

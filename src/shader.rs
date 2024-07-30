@@ -1,10 +1,11 @@
+use bevy_ecs::system::Resource;
 use gl;
 use std::fs::File;
 use std::io::Read;
 use std::ptr;
 use std::str;
 
-#[derive(Clone)]
+#[derive(Clone, Resource)]
 pub struct Shader {
     pub shader_id: gl::types::GLuint,
     pub vao: gl::types::GLuint,

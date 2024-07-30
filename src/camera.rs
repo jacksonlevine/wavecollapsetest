@@ -1,6 +1,9 @@
 
 
+use bevy_ecs::system::Resource;
 use glam::{Mat4, Vec3};
+
+#[derive(Resource)]
 pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
