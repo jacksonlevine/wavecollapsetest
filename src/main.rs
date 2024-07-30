@@ -119,6 +119,7 @@ pub fn bind_old_geometry(
     vdata: &[f32],
     uvdata: &[f32],
     shader: &Shader,
+    vao: GLuint
 ) {
     unsafe {
         // Upload vertex data to named buffer
@@ -134,7 +135,7 @@ pub fn bind_old_geometry(
         }
 
         // Bind vertex buffer to the vertex array object
-        gl::VertexArrayVertexBuffer(shader.vao, 0, vbov, 0, (5 * std::mem::size_of::<f32>()) as GLsizei);
+        gl::VertexArrayVertexBuffer(vao, 0, vbov, 0, (5 * std::mem::size_of::<f32>()) as GLsizei);
         let error = gl::GetError();
         if error != gl::NO_ERROR {
             info!("OpenGL Error after associating vbov with vao: {}", error);
@@ -145,16 +146,16 @@ pub fn bind_old_geometry(
         if pos_attrib == -1 {
             info!("Error: position attribute not found in shader.");
         } else {
-            gl::EnableVertexArrayAttrib(shader.vao, pos_attrib as GLuint);
+            gl::EnableVertexArrayAttrib(vao, pos_attrib as GLuint);
             gl::VertexArrayAttribFormat(
-                shader.vao,
+                vao,
                 pos_attrib as GLuint,
                 3,
                 gl::FLOAT,
                 gl::FALSE,
                 0,
             );
-            gl::VertexArrayAttribBinding(shader.vao, pos_attrib as GLuint, 0);
+            gl::VertexArrayAttribBinding(vao, pos_attrib as GLuint, 0);
         }
 
         // Block brightness attribute
@@ -162,15 +163,15 @@ pub fn bind_old_geometry(
         if brightness_attrib == -1 {
             info!("Error: blockRgb attribute not found in shader.");
         } else {
-            gl::EnableVertexArrayAttrib(shader.vao, brightness_attrib as GLuint);
+            gl::EnableVertexArrayAttrib(vao, brightness_attrib as GLuint);
             gl::VertexArrayAttribIFormat(
-                shader.vao,
+                vao,
                 brightness_attrib as GLuint,
                 1,
                 gl::UNSIGNED_INT,
                 (3 * std::mem::size_of::<f32>()) as GLuint,
             );
-            gl::VertexArrayAttribBinding(shader.vao, brightness_attrib as GLuint, 0);
+            gl::VertexArrayAttribBinding(vao, brightness_attrib as GLuint, 0);
         }
 
         // Ambient brightness attribute
@@ -178,16 +179,16 @@ pub fn bind_old_geometry(
         if amb_brightness == -1 {
             info!("Error: ambientBright attribute not found in shader.");
         } else {
-            gl::EnableVertexArrayAttrib(shader.vao, amb_brightness as GLuint);
+            gl::EnableVertexArrayAttrib(vao, amb_brightness as GLuint);
             gl::VertexArrayAttribFormat(
-                shader.vao,
+                vao,
                 amb_brightness as GLuint,
                 1,
                 gl::FLOAT,
                 gl::FALSE,
                 (4 * std::mem::size_of::<f32>()) as GLuint,
             );
-            gl::VertexArrayAttribBinding(shader.vao, amb_brightness as GLuint, 0);
+            gl::VertexArrayAttribBinding(vao, amb_brightness as GLuint, 0);
         }
 
         // Upload UV data to named buffer
@@ -203,7 +204,7 @@ pub fn bind_old_geometry(
         }
 
         // Bind UV buffer to the vertex array object
-        gl::VertexArrayVertexBuffer(shader.vao, 1, vbouv, 0, (4 * std::mem::size_of::<f32>()) as GLsizei);
+        gl::VertexArrayVertexBuffer(vao, 1, vbouv, 0, (4 * std::mem::size_of::<f32>()) as GLsizei);
         let error = gl::GetError();
         if error != gl::NO_ERROR {
             info!("OpenGL Error after associating vbouv with vao: {}", error);
@@ -214,29 +215,30 @@ pub fn bind_old_geometry(
         if uv_attrib == -1 {
             info!("Error: uv attribute not found in shader.");
         } else {
-            gl::EnableVertexArrayAttrib(shader.vao, uv_attrib as GLuint);
+            gl::EnableVertexArrayAttrib(vao, uv_attrib as GLuint);
             gl::VertexArrayAttribFormat(
-                shader.vao,
+                vao,
                 uv_attrib as GLuint,
                 2,
                 gl::FLOAT,
                 gl::FALSE,
                 0,
             );
-            gl::VertexArrayAttribBinding(shader.vao, uv_attrib as GLuint, 1);
+            gl::VertexArrayAttribBinding(vao, uv_attrib as GLuint, 1);
         }
     }
 }
 
 
-pub fn draw_old_geometry(vvbo: GLuint, uvvbo: GLuint, vdata: &Vec<f32>, uvdata: &Vec<f32>, camera: &Camera, shader: &Shader) {
+pub fn draw_old_geometry(vvbo: GLuint, uvvbo: GLuint, camera: &Camera, shader: &Shader, length: usize, vao: GLuint) {
 
 
     unsafe {
-        gl::BindVertexArray(shader.vao);
+        gl::BindVertexArray(vao);
         gl::UseProgram(shader.shader_id);
     }
     
+
         static mut MVP_LOC: i32 = -1;
         static mut CAM_POS_LOC: i32 = 0;
         static mut AMBIENT_BRIGHT_MULT_LOC: i32 = 0;
@@ -326,13 +328,13 @@ pub fn draw_old_geometry(vvbo: GLuint, uvvbo: GLuint, vdata: &Vec<f32>, uvdata: 
 
         }
 
-        bind_old_geometry(vvbo, uvvbo, vdata.as_slice(), uvdata.as_slice(), &shader);
+        //bind_old_geometry_no_upload(vvbo, uvvbo, &shader);
 
 
 
         unsafe {
             //gl::Disable(gl::CULL_FACE);
-            gl::DrawArrays(gl::TRIANGLES, 0, vdata.len() as i32 / 5);
+            gl::DrawArrays(gl::TRIANGLES, 0, length as i32 / 5);
             let error = gl::GetError();
             if error != gl::NO_ERROR {
                 info!("OpenGL Error after drawing arrays: {}", error);
@@ -394,17 +396,30 @@ fn main() {
     world.insert_resource(Texture::default());
     world.insert_resource(Shader::new("oldvert.glsl", "oldfrag.glsl"));
 
+    LOAD_IN_ALL_MODELS(world.resource::<Shader>());
+
 
     world.spawn((
         Position { pos: Vec3::ZERO },
         PlayerCamHere{},
-        ModelIndex{ jmodel: JModelIndex::TestCraftingTable}
+        ModelIndex{ jmodel: JModelIndex::PlayerModel}
     ));
 
 
     world.spawn((
         Position { pos: Vec3::ZERO },
-        ModelIndex{ jmodel: JModelIndex::TestCraftingTable}
+        ModelIndex{ jmodel: JModelIndex::TestTreeBush}
+    ));
+
+
+    world.spawn((
+        Position { pos: Vec3::new(4.0, 0.0, 0.0) },
+        ModelIndex{ jmodel: JModelIndex::PlayerModel}
+    ));
+
+    world.spawn((
+        Position { pos: Vec3::new(-4.0, 0.0, 4.0) },
+        ModelIndex{ jmodel: JModelIndex::TestTreeBush}
     ));
 
     let mut schedule = Schedule::default();
@@ -458,12 +473,13 @@ pub fn bind_old_geometry_no_upload(
     vbov: GLuint,
     vbouv: GLuint,
     shader: &Shader,
+    vao: GLuint
 ) {
     unsafe {
 
 
         // Bind vertex buffer to the vertex array object
-        gl::VertexArrayVertexBuffer(shader.vao, 0, vbov, 0, (5 * std::mem::size_of::<f32>()) as GLsizei);
+        gl::VertexArrayVertexBuffer(vao, 0, vbov, 0, (5 * std::mem::size_of::<f32>()) as GLsizei);
         let error = gl::GetError();
         if error != gl::NO_ERROR {
             info!("OpenGL Error after associating vbov with vao: {}", error);
@@ -471,45 +487,45 @@ pub fn bind_old_geometry_no_upload(
 
         // Position attribute
         let pos_attrib = gl::GetAttribLocation(shader.shader_id, b"position\0".as_ptr() as *const i8);
-        gl::EnableVertexArrayAttrib(shader.vao, pos_attrib as GLuint);
+        gl::EnableVertexArrayAttrib(vao, pos_attrib as GLuint);
         gl::VertexArrayAttribFormat(
-            shader.vao,
+            vao,
             pos_attrib as GLuint,
             3,
             gl::FLOAT,
             gl::FALSE,
             0,
         );
-        gl::VertexArrayAttribBinding(shader.vao, pos_attrib as GLuint, 0);
+        gl::VertexArrayAttribBinding(vao, pos_attrib as GLuint, 0);
 
         // Block brightness attribute
         let brightness_attrib = gl::GetAttribLocation(shader.shader_id, b"blockRgb\0".as_ptr() as *const i8);
-        gl::EnableVertexArrayAttrib(shader.vao, brightness_attrib as GLuint);
+        gl::EnableVertexArrayAttrib(vao, brightness_attrib as GLuint);
         gl::VertexArrayAttribIFormat(
-            shader.vao,
+            vao,
             brightness_attrib as GLuint,
             1,
             gl::UNSIGNED_INT,
             (3 * std::mem::size_of::<u32>()) as GLuint,
         );
-        gl::VertexArrayAttribBinding(shader.vao, brightness_attrib as GLuint, 0);
+        gl::VertexArrayAttribBinding(vao, brightness_attrib as GLuint, 0);
 
         // Ambient brightness attribute
         let amb_brightness = gl::GetAttribLocation(shader.shader_id, b"ambientBright\0".as_ptr() as *const i8);
-        gl::EnableVertexArrayAttrib(shader.vao, amb_brightness as GLuint);
+        gl::EnableVertexArrayAttrib(vao, amb_brightness as GLuint);
         gl::VertexArrayAttribFormat(
-            shader.vao,
+            vao,
             amb_brightness as GLuint,
             1,
             gl::FLOAT,
             gl::FALSE,
             (4 * std::mem::size_of::<f32>()) as GLuint,
         );
-        gl::VertexArrayAttribBinding(shader.vao, amb_brightness as GLuint, 0);
+        gl::VertexArrayAttribBinding(vao, amb_brightness as GLuint, 0);
 
 
         // Bind UV buffer to the vertex array object
-        gl::VertexArrayVertexBuffer(shader.vao, 1, vbouv, 0, (4 * std::mem::size_of::<f32>()) as GLsizei);
+        gl::VertexArrayVertexBuffer(vao, 1, vbouv, 0, (4 * std::mem::size_of::<f32>()) as GLsizei);
         let error = gl::GetError();
         if error != gl::NO_ERROR {
             info!("OpenGL Error after associating vbouv with vao: {}", error);
@@ -517,28 +533,28 @@ pub fn bind_old_geometry_no_upload(
 
         // UV attribute
         let uv_attrib = gl::GetAttribLocation(shader.shader_id, b"uv\0".as_ptr() as *const i8);
-        gl::EnableVertexArrayAttrib(shader.vao, uv_attrib as GLuint);
+        gl::EnableVertexArrayAttrib(vao, uv_attrib as GLuint);
         gl::VertexArrayAttribFormat(
-            shader.vao,
+            vao,
             uv_attrib as GLuint,
             2,
             gl::FLOAT,
             gl::FALSE,
             0,
         );
-        gl::VertexArrayAttribBinding(shader.vao, uv_attrib as GLuint, 1);
+        gl::VertexArrayAttribBinding(vao, uv_attrib as GLuint, 1);
 
         // // UV base attribute
         // let uv_attrib2 = gl::GetAttribLocation(shader.shader_id, b"uvbase\0".as_ptr() as *const i8);
-        // gl::EnableVertexArrayAttrib(shader.vao, uv_attrib2 as GLuint);
+        // gl::EnableVertexArrayAttrib(vao, uv_attrib2 as GLuint);
         // gl::VertexArrayAttribFormat(
-        //     shader.vao,
+        //     vao,
         //     uv_attrib2 as GLuint,
         //     2,
         //     gl::FLOAT,
         //     gl::FALSE,
         //     (2 * std::mem::size_of::<f32>()) as GLuint,
         // );
-        // gl::VertexArrayAttribBinding(shader.vao, uv_attrib2 as GLuint, 1);
+        // gl::VertexArrayAttribBinding(vao, uv_attrib2 as GLuint, 1);
     }
 }

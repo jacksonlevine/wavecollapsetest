@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use gl::types::*;
 use glfw::{ffi::glfwGetTime, Action, Key};
-use crate::{camera::Camera, cursor_pos, draw_old_geometry, maincomponents::*, shader::Shader, JControls, JModel, MODELS};
+use crate::{bind_old_geometry_no_upload, camera::Camera, cursor_pos, draw_old_geometry, maincomponents::*, shader::Shader, JControls, JModel, MODELS};
 
 
 #[derive(Resource, Default)]
@@ -127,28 +127,33 @@ pub fn draw_all_jmodels(query: Query<(&Position, &ModelIndex)>, camera: Res<Came
         gl::ClearColor(1.0, 0.0, 0.0, 1.0);
     }
 
-    static mut VVBO: GLuint = 0;
-    static mut UVVBO: GLuint = 0;
+    // static mut VVBO: GLuint = 0;
+    // static mut UVVBO: GLuint = 0;
 
     for (pos, modelindex) in &query {
         let jm = (&modelindex.jmodel).clone();
 
+
         let ind: usize = jm.into();
         let model: &JModel = &MODELS[ind];
+
+        unsafe {
+            gl::BindVertexArray(model.vao);
+        }
+
+
         let verts = &model.verts;
 
 
 
-        let uvs = &model.uvs;
 
 
-
-        unsafe {
-            if VVBO == 0 {
-                gl::CreateBuffers(1, &mut VVBO);
-                gl::CreateBuffers(1, &mut UVVBO);
-            }
-        }
+        // unsafe {
+        //     if VVBO == 0 {
+        //         gl::CreateBuffers(1, &mut VVBO);
+        //         gl::CreateBuffers(1, &mut UVVBO);
+        //     }
+        // }
         
         unsafe {
             gl::Uniform3f(
@@ -161,11 +166,14 @@ pub fn draw_all_jmodels(query: Query<(&Position, &ModelIndex)>, camera: Res<Came
                 pos.pos.z
             );
         }
+
+
         
 
 
         unsafe {
-            draw_old_geometry(VVBO, UVVBO, verts, uvs, &camera, &shader);
+            bind_old_geometry_no_upload(model.vbo, model.uvbo, &shader, model.vao);
+            draw_old_geometry(model.vbo, model.uvbo, &camera, &shader, verts.len(), model.vao);
         }
     }
 }
